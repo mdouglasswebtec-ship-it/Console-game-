@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Console Game - Browser View</title>
+  <style>
+    :root {
+      --bg-1: #102218;
+      --bg-2: #1c3b2a;
+      --panel: rgba(12, 24, 18, 0.88);
+      --ink: #ecf8ef;
+      --grid-dot: #5e8467;
+      --player: #8cfb9d;
+      --fruit: #ffd166;
+      --accent: #7acb8c;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Trebuchet MS", "Lucida Sans Unicode", "Lucida Grande", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 15% 20%, rgba(140, 251, 157, 0.15), transparent 35%),
+        radial-gradient(circle at 85% 75%, rgba(255, 209, 102, 0.12), transparent 35%),
+        linear-gradient(135deg, var(--bg-1), var(--bg-2));
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .game-shell {
+      width: min(840px, 100%);
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 14px 35px rgba(0, 0, 0, 0.35);
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(1.3rem, 2.6vw, 2rem);
+      letter-spacing: 0.03em;
+    }
+
+    .hud {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px 18px;
+      margin-bottom: 14px;
+      color: #d8efdc;
+      font-size: 0.95rem;
+    }
+
+    .score {
+      color: var(--fruit);
+      font-weight: 700;
+    }
+
+    .board-wrap {
+      overflow: auto;
+      border-radius: 10px;
+      border: 1px solid rgba(122, 203, 140, 0.45);
+      background: rgba(9, 18, 12, 0.8);
+      padding: 10px;
+    }
+
+    #board {
+      margin: 0;
+      font-family: "Courier New", Courier, monospace;
+      line-height: 1;
+      white-space: pre;
+      color: var(--grid-dot);
+      user-select: none;
+      font-size: 18px;
+    }
+
+    .player {
+      color: var(--player);
+      font-weight: 700;
+    }
+
+    .fruit {
+      color: var(--fruit);
+      font-weight: 700;
+    }
+
+    .hint {
+      margin: 12px 0 0;
+      color: #cce3d2;
+      font-size: 0.92rem;
+    }
+
+    .quit {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    @media (max-width: 640px) {
+      .game-shell {
+        padding: 14px;
+      }
+
+      #board {
+        font-size: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="game-shell" role="application" aria-label="Console game browser version">
+    <h1>Console Game</h1>
+    <div class="hud">
+      <div>Use Arrow Keys to move</div>
+      <div>Press <span class="quit">Q</span> to stop</div>
+      <div>Score: <span id="score" class="score">0</span></div>
+    </div>
+
+    <div class="board-wrap">
+      <pre id="board" aria-live="polite"></pre>
+    </div>
+
+    <p class="hint">The player character changes direction like the console version: &lt; &gt; ^ v.</p>
+  </main>
+
+  <script>
+    const width = 30;
+    const height = 15;
+
+    let x = Math.floor(width / 2);
+    let y = Math.floor(height / 2);
+    let player = 'O';
+
+    let fruitX = randomInt(0, width - 1);
+    let fruitY = randomInt(0, height - 1);
+    let score = 0;
+    let stopped = false;
+
+    const boardEl = document.getElementById('board');
+    const scoreEl = document.getElementById('score');
+
+    drawBoard();
+
+    window.addEventListener('keydown', (event) => {
+      if (stopped) {
+        return;
+      }
+
+      const key = event.key;
+
+      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "q", "Q"].includes(key)) {
+        event.preventDefault();
+      }
+
+      if (key === 'q' || key === 'Q') {
+        stopped = true;
+        boardEl.insertAdjacentHTML('afterend', '<p class="hint">Game stopped. Refresh to play again.</p>');
+        return;
+      }
+
+      const move = updatePosition(key);
+      x = keepInBounds(x + move.xChange, width);
+      y = keepInBounds(y + move.yChange, height);
+
+      player = updateCursor(key);
+
+      if (didScore(x, y, fruitX, fruitY)) {
+        score += 1;
+
+        do {
+          fruitX = randomInt(0, width - 1);
+          fruitY = randomInt(0, height - 1);
+        } while (didScore(x, y, fruitX, fruitY));
+      }
+
+      drawBoard();
+    });
+
+    function updatePosition(key) {
+      let xChange = 0;
+      let yChange = 0;
+
+      if (key === 'ArrowLeft') {
+        xChange = -1;
+      } else if (key === 'ArrowRight') {
+        xChange = 1;
+      } else if (key === 'ArrowUp') {
+        yChange = -1;
+      } else if (key === 'ArrowDown') {
+        yChange = 1;
+      }
+
+      return { xChange, yChange };
+    }
+
+    function updateCursor(key) {
+      if (key === 'ArrowLeft') return '<';
+      if (key === 'ArrowRight') return '>';
+      if (key === 'ArrowUp') return '^';
+      if (key === 'ArrowDown') return 'v';
+      return 'O';
+    }
+
+    function keepInBounds(coordinate, maxCoordinate) {
+      if (coordinate < 0) return 0;
+      if (coordinate >= maxCoordinate) return maxCoordinate - 1;
+      return coordinate;
+    }
+
+    function didScore(xChar, yChar, xFruitPos, yFruitPos) {
+      return xChar === xFruitPos && yChar === yFruitPos;
+    }
+
+    function drawBoard() {
+      scoreEl.textContent = String(score);
+
+      let html = '';
+
+      for (let row = 0; row < height; row++) {
+        for (let col = 0; col < width; col++) {
+          if (col === x && row === y) {
+            html += `<span class="player">${escapeHtml(player)}</span>`;
+          } else if (col === fruitX && row === fruitY) {
+            html += '<span class="fruit">@</span>';
+          } else {
+            html += '.';
+          }
+        }
+        html += '\n';
+      }
+
+      boardEl.innerHTML = html;
+    }
+
+    function randomInt(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function escapeHtml(value) {
+      return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+  </script>
+</body>
+</html>
